@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TokenGuard — Honeypot & Phishing Detector</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #111820;
+      --panel-2: #0e141b;
+      --border: #1f2b37;
+      --text: #e6edf3;
+      --muted: #8b9bab;
+      --accent: #2ee6a8;
+      --accent-2: #14b8ff;
+      --danger: #ff5c5c;
+      --warn: #ffb020;
+      --ok: #2ee6a8;
+      --radius: 14px;
+      --shadow: 0 10px 30px rgba(0,0,0,.45);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+    }
+
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background:
+        radial-gradient(1200px 600px at 20% -10%, rgba(46,230,168,.08), transparent 60%),
+        radial-gradient(1000px 500px at 100% 0%, rgba(20,184,255,.08), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 20px 80px;
+      line-height: 1.5;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 640px;
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 32px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 2.1rem;
+      letter-spacing: -.02em;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      font-weight: 800;
+    }
+
+    .subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: .95rem;
+      letter-spacing: .01em;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    #contractInput {
+      flex: 1;
+      min-width: 0;
+      padding: 14px 16px;
+      font-size: 0.95rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--text);
+      background: #0a1016;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+
+    #contractInput::placeholder { color: #56677a; }
+
+    #contractInput:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(46,230,168,.15);
+    }
+
+    #analyzeBtn {
+      padding: 14px 22px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #04120c;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: transform .08s, filter .15s, opacity .15s;
+    }
+
+    #analyzeBtn:hover:not(:disabled) { filter: brightness(1.08); }
+    #analyzeBtn:active:not(:disabled) { transform: translateY(1px); }
+    #analyzeBtn:disabled { opacity: .55; cursor: not-allowed; }
+
+    .result {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #0a1016;
+      padding: 20px;
+      margin-bottom: 8px;
+      animation: fadeIn .25s ease;
+    }
+
+    .result.hidden { display: none; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .verdict {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.15rem;
+      font-weight: 800;
+      margin-bottom: 14px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot.ok { background: var(--ok); box-shadow: 0 0 12px var(--ok); }
+    .dot.warn { background: var(--warn); box-shadow: 0 0 12px var(--warn); }
+    .dot.danger { background: var(--danger); box-shadow: 0 0 12px var(--danger); }
+
+    .verdict.ok { color: var(--ok); }
+    .verdict.warn { color: var(--warn); }
+    .verdict.danger { color: var(--danger); }
+
+    .addr {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .82rem;
+      color: var(--muted);
+      word-break: break-all;
+      margin-bottom: 16px;
+      padding: 10px 12px;
+      background: rgba(255,255,255,.02);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .checks {
+      list-style: none;
+      margin: 0 0 14px;
+      padding: 0;
+    }
+
+    .checks li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 9px 0;
+      border-bottom: 1px dashed rgba(255,255,255,.06);
+      font-size: .92rem;
+    }
+
+    .checks li:last-child { border-bottom: none; }
+
+    .checks .label { color: var(--muted); }
+
+    .badge {
+      font-size: .75rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 999px;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+    }
+
+    .badge.ok { color: var(--ok); background: rgba(46,230,168,.12); border: 1px solid rgba(46,230,168,.3); }
+    .badge.warn { color: var(--warn); background: rgba(255,176,32,.12); border: 1px solid rgba(255,176,32,.3); }
+    .badge.danger { color: var(--danger); background: rgba(255,92,92,.12); border: 1px solid rgba(255,92,92,.3); }
+
+    .notice {
+      font-size: .8rem;
+      color: var(--muted);
+      border-left: 3px solid var(--warn);
+      padding: 8px 12px;
+      background: rgba(255,176,32,.06);
+      border-radius: 0 8px 8px 0;
+    }
+
+    .error {
+      color: var(--danger);
+      font-size: .9rem;
+      font-weight: 600;
+    }
+
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: .78rem;
+      margin-top: 24px;
+      letter-spacing: .02em;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(4,18,12,.35);
+      border-top-color: #04120c;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 520px) {
+      body { padding: 24px 14px 48px; }
+      .container { padding: 22px; }
+      .input-group { flex-direction: column; }
+      #analyzeBtn { width: 100%; }
+      h1 { font-size: 1.7rem; }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>TokenGuard</h1>
+      <p class="subtitle">Honeypot &amp; Phishing Detector</p>
+    </header>
+
+    <div class="input-group">
+      <input
+        type="text"
+        id="contractInput"
+        placeholder="Paste contract address (0x...)"
+        spellcheck="false"
+        autocomplete="off"
+        aria-label="Contract address"
+      />
+      <button id="analyzeBtn">Analyze</button>
+    </div>
+
+    <div id="result" class="result hidden" aria-live="polite"></div>
+
+    <footer>
+      <small>Research tool • Not financial advice</small>
+    </footer>
+  </main>
+
+  <script>
+    // ---- TokenGuard demo engine -------------------------------------------
+    // NOTE: This is a MOCK analyzer for the demo page. In the real extension,
+    // popup.js calls your backend / on-chain APIs via chrome.runtime.
+    // Replace analyzeAddress() with a fetch() to your real endpoint.
+
+    const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
+
+    // Deterministic pseudo-random derived from the address, so the same
+    // address always yields the same demo result.
+    function hashString(str) {
+      let h = 2166136261;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    }
+
+    function mockChecks(address) {
+      const h = hashString(address.toLowerCase());
+      const pick = (n) => (h >> n) & 1;
+
+      const checks = [
+        { label: "Honeypot simulation", bad: pick(1) },
+        { label: "Buy / sell tax",       bad: pick(3)  },
+        { label: "Owner privileges",     bad: pick(5)  },
+        { label: "Liquidity locked",     bad: pick(7)  },
+        { label: "Contract verified",    bad: pick(9)  },
+        { label: "Phishing / blacklist", bad: pick(11) },
+      ];
+
+      const score = checks.filter(c => c.bad).length;
+      let verdict;
+      if (score === 0)      verdict = { level: "ok",     text: "Likely Safe" };
+      else if (score <= 2)  verdict = { level: "warn",   text: "Proceed With Caution" };
+      else                  verdict = { level: "danger", text: "High Risk — Avoid" };
+
+      return { checks, score, verdict };
+    }
+
+    function analyzeAddress(address) {
+      // Swap this for a real async call, e.g.:
+      //   return fetch(`https://api.yourdomain.com/scan?addr=${address}`).then(r => r.json());
+      return new Promise((resolve) => {
+        setTimeout(() => resolve(mockChecks(address)), 600);
+      });
+    }
+
+    // ---- UI wiring --------------------------------------------------------
+    const input      = document.getElementById("contractInput");
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    const resultBox  = document.getElementById("result");
+
+    function renderError(msg) {
+      resultBox.classList.remove("hidden");
+      resultBox.innerHTML = `<p class="error">${msg}</p>`;
+    }
+
+    function renderResult(address, data) {
+      const { checks, verdict } = data;
+
+      const rows = checks.map(c => {
+        const level = c.bad ? "danger" : "ok";
+        const text  = c.bad ? "Flagged" : "Clear";
+        return `
+          <li>
+            <span class="label">${c.label}</span>
+            <span class="badge ${level}">${text}</span>
+          </li>`;
+      }).join("");
+
+      resultBox.classList.remove("hidden");
+      resultBox.innerHTML = `
+        <div class="verdict ${verdict.level}">
+          <span class="dot ${verdict.level}"></span>
+          ${verdict.text}
+        </div>
+        <div class="addr">${address}</div>
+        <ul class="checks">${rows}</ul>
+        <p class="notice">
+          Demo results are simulated locally. Connect the real TokenGuard
+          scanner for live on-chain analysis.
+        </p>
+      `;
+    }
+
+    async function handleAnalyze() {
+      const address = input.value.trim();
+
+      if (!address) {
+        renderError("Please enter a contract address.");
+        return;
+      }
+      if (!ADDR_RE.test(address)) {
+        renderError("Invalid address. Expected 0x followed by 40 hex characters.");
+        return;
+      }
+
+      analyzeBtn.disabled = true;
+      const originalLabel = analyzeBtn.textContent;
+      analyzeBtn.innerHTML = `<span class="spinner"></span>`;
+
+      resultBox.classList.add("hidden");
+      resultBox.innerHTML = "";
+
+      try {
+        const data = await analyzeAddress(address);
+        renderResult(address, data);
+      } catch (err) {
+        renderError("Analysis failed. Please try again.");
+      } finally {
+        analyzeBtn.disabled = false;
+        analyzeBtn.textContent = originalLabel;
+      }
+    }
+
+    analyzeBtn.addEventListener("click", handleAnalyze);
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") handleAnalyze();
+    });
+
+    // Auto-focus on load
+    input.focus();
+  </script>
+</body>
+</html>
